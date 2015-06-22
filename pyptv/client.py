@@ -4,8 +4,8 @@ from datetime import datetime
 import hmac
 from hashlib import sha1
 import json
-import urlparse  # TODO: remove in favour of better lib
-import urllib
+import urllib.parse  # TODO: remove in favour of better lib
+import urllib.request, urllib.parse, urllib.error
 
 import requests
 
@@ -47,17 +47,17 @@ class PTVClient(object):
     def __init__(self, developer_id=None, api_key=None):
 
         self.developer_id = developer_id
-        self.api_key = api_key
+        self.api_key = api_key.encode('utf-8')
 
     def _api_request(self, api_path, timed=True):
         """Call some api end point and return the raw response.
         API request will have proper signing key appended.
         """
-
-        parsed = urlparse.urlparse(api_path)
+        
+        parsed = urllib.parse.urlparse(api_path)
 
         # parse out current query
-        query = urlparse.parse_qsl(parsed.query)
+        query = urllib.parse.parse_qsl(parsed.query)
 
         # add timestamp
         if timed:
@@ -67,26 +67,26 @@ class PTVClient(object):
         # add developer id
         query.append(('devid', self.developer_id))
 
-        unsigned_query = urllib.urlencode(query)
+        unsigned_query = urllib.parse.urlencode(query)
         unsigned_parsed = parsed._replace(query=unsigned_query)
 
-        unsigned_path = unsigned_parsed.geturl()
-
+        unsigned_path = unsigned_parsed.geturl().encode('utf-8')
+    
         digest = hmac.new(self.api_key, unsigned_path, sha1)
 
         signature = digest.hexdigest()
 
         query.append(('signature', signature))
-        signed_query = urllib.urlencode(query)
+        signed_query = urllib.parse.urlencode(query) 
         signed_parsed = unsigned_parsed._replace(query=signed_query)
 
         signed_path = signed_parsed.geturl()
 
-        signed_url = urlparse.urljoin(API_BASE_URL, signed_path)
+        signed_url = urllib.parse.urljoin(API_BASE_URL, signed_path)
 
         req = requests.get(signed_url)
 
-        data = json.loads(req.content)
+        data = json.loads(req.content.decode()) #Decoded the content here for python 3.0 or above 
 
         return data
 
@@ -182,7 +182,7 @@ class PTVClient(object):
         outlet_factory = OutletFactory(self)
 
         out = {}
-        for k, v in data.items():
+        for k, v in list(data.items()):
             if k == "locations":
                 out['locations'] = []
                 for location in v:
@@ -208,7 +208,7 @@ class PTVClient(object):
             list of Stops & Lines
         """
 
-        path = "/v2/search/%s" % urllib.quote(term)
+        path = "/v2/search/%s" % urllib.parse.quote(term)
 
         data = self._api_request(path)
 
@@ -433,7 +433,7 @@ class PTVClient(object):
         factory = DisruptionFactory(self)
 
         out = []
-        for mode, items in data.items():
+        for mode, items in list(data.items()):
             for item in items:
                 out.append(factory.create(transport_type=mode, **item))
         return out
